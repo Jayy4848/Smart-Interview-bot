@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Interview Bot</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div>
+          <h1>Smart Interview Bot</h1>
+          <p class="sub">
+            Upload your resume → get tailored questions → answer by text or voice → receive feedback + scoring.
+          </p>
+        </div>
+        <div class="pill" id="modePill">LLM: stub • STT: stub</div>
+      </header>
+
+      <section class="card">
+        <h2>1) Upload resume</h2>
+        <div class="row">
+          <input id="resumeFile" type="file" accept=".pdf,.docx,.txt,.md" />
+          <button id="uploadBtn">Upload</button>
+        </div>
+        <div class="hint" id="resumeStatus">No resume uploaded yet.</div>
+      </section>
+
+      <section class="card">
+        <h2>2) Start session</h2>
+        <div class="grid">
+          <label>
+            Target role
+            <input id="targetRole" type="text" value="Software Engineer" />
+          </label>
+          <label>
+            Seniority
+            <select id="seniority">
+              <option value="intern">intern</option>
+              <option value="junior">junior</option>
+              <option value="mid" selected>mid</option>
+              <option value="senior">senior</option>
+              <option value="staff">staff</option>
+            </select>
+          </label>
+          <label>
+            Focus areas (comma-separated)
+            <input id="focusAreas" type="text" placeholder="backend, system design, NLP" />
+          </label>
+          <label>
+            Max questions
+            <input id="maxQuestions" type="number" min="3" max="20" value="8" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="startBtn" disabled>Start session</button>
+          <div class="hint" id="sessionStatus">Upload a resume to enable.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3) Interview</h2>
+        <div class="questionBox">
+          <div class="meta">
+            <span class="tag" id="qCategory">—</span>
+            <span class="tag" id="qDifficulty">—</span>
+            <span class="tag" id="qIndex">Q —</span>
+          </div>
+          <div class="question" id="questionText">Start a session to get your first question.</div>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label>
+              Text answer
+              <textarea id="answerText" rows="6" placeholder="Type your answer here..."></textarea>
+            </label>
+            <div class="row">
+              <button id="submitTextBtn" disabled>Submit text</button>
+              <button id="nextBtn" disabled>Next question</button>
+            </div>
+          </div>
+          <div>
+            <label>
+              Voice answer (upload audio)
+              <input id="audioFile" type="file" accept=".wav,.mp3,.m4a,.webm" />
+            </label>
+            <div class="row">
+              <button id="submitAudioBtn" disabled>Submit audio</button>
+            </div>
+            <div class="hint">Tip: enable OpenAI STT in <code>.env</code> to get real transcription.</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="scoreRow">
+          <div class="scoreCard">
+            <div class="scoreLabel">Latest score</div>
+            <div class="scoreValue" id="latestScore">—</div>
+            <div class="scoreBreakdown" id="breakdown">relevance — • depth — • clarity — • evidence —</div>
+          </div>
+          <div class="scoreCard">
+            <div class="scoreLabel">Session average</div>
+            <div class="scoreValue" id="avgScore">—</div>
+            <div class="hint" id="askedCount">asked —</div>
+          </div>
+        </div>
+
+        <div class="feedback">
+          <div>
+            <h3>Strengths</h3>
+            <ul id="strengths"></ul>
+          </div>
+          <div>
+            <h3>Improvements</h3>
+            <ul id="improvements"></ul>
+          </div>
+        </div>
+
+        <div class="transcriptBox" id="transcriptBox" hidden>
+          <h3>Transcript</h3>
+          <pre id="transcript"></pre>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+
