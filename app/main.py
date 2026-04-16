@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import get_paths, get_settings
+from .config import get_settings
 from .llm import LLMClient
 from .models import (
     AnswerIn,
@@ -18,13 +17,12 @@ from .models import (
     SessionOut,
     ScoreBreakdown,
 )
-from .resume_parser import extract_resume_text
+from .resume_parser import extract_resume_text_from_bytes
 from .store import AnswerEval, MemoryStore, Question
 from .stt import STTClient
 
 app = FastAPI(title="Smart Interview Bot", version="0.1.0")
 
-paths = get_paths()
 settings = get_settings()
 store = MemoryStore()
 llm = LLMClient(settings=settings)
@@ -39,26 +37,13 @@ async def index() -> str:
     return (static_dir / "index.html").read_text(encoding="utf-8")
 
 
-def _save_upload(file: UploadFile, dest_dir: Path) -> Path:
-    raw = file.filename or "upload"
-    safe = "".join(ch for ch in raw if ch.isalnum() or ch in {"-", "_", ".", " "}).strip().replace(" ", "_")
-    if not safe:
-        safe = "upload"
-    suffix = Path(safe).suffix.lower()
-    content = file.file.read()
-    h = hashlib.sha256(content).hexdigest()[:16]
-    out = dest_dir / f"{Path(safe).stem}_{h}{suffix}"
-    out.write_bytes(content)
-    return out
-
-
 @app.post("/api/resume", response_model=ResumeOut)
 async def upload_resume(file: UploadFile = File(...)) -> ResumeOut:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename.")
-    dest = _save_upload(file, paths.uploads_dir)
+    content = await file.read()
     try:
-        text = extract_resume_text(dest)
+        text = extract_resume_text_from_bytes(content, file.filename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     if not text or len(text) < 50:
@@ -188,8 +173,8 @@ async def submit_audio_answer(session_id: str, question_id: str, file: UploadFil
     except KeyError:
         raise HTTPException(status_code=404, detail="Question not found.")
 
-    audio_path = _save_upload(file, paths.uploads_dir)
-    transcript = await stt.transcribe(audio_path)
+    audio_bytes = await file.read()
+    transcript = await stt.transcribe_bytes(audio_bytes, file.filename or "audio")
 
     ev = await llm.evaluate_answer(
         resume_text=resume.text,
