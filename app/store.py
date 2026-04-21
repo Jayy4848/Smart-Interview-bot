@@ -53,7 +53,8 @@ class Session:
 
     @property
     def asked(self) -> int:
-        return len(self.questions)
+        # "Asked" in UI should reflect how many questions were answered so far.
+        return len(self.evaluations)
 
     @property
     def total_score(self) -> int:

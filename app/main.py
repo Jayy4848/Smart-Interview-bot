@@ -21,7 +21,7 @@ from .resume_parser import extract_resume_text_from_bytes
 from .store import AnswerEval, MemoryStore, Question
 from .stt import STTClient
 
-app = FastAPI(title="Smart Interview Bot", version="0.1.0")
+app = FastAPI(title="Smart AI Interview Bot", version="0.1.0")
 
 settings = get_settings()
 store = MemoryStore()
@@ -30,6 +30,15 @@ stt = STTClient(settings=settings)
 
 static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/api/meta")
+async def meta() -> dict:
+    return {
+        "llm_provider": settings.llm_provider,
+        "stt_provider": settings.stt_provider,
+        "stub_mode": settings.llm_provider != "openai",
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -80,9 +89,6 @@ async def next_question(session_id: str) -> QuestionOut:
     if session_id not in store.sessions:
         raise HTTPException(status_code=404, detail="Session not found.")
     s = store.get_session(session_id)
-    if len(s.questions) >= s.max_questions:
-        raise HTTPException(status_code=400, detail="No more questions in this session.")
-
     # Generate questions once per session, lazily.
     if not s.questions:
         resume = store.get_resume(s.resume_id)
@@ -103,6 +109,10 @@ async def next_question(session_id: str) -> QuestionOut:
                     difficulty=q.difficulty,
                 )
             )
+
+    # Stop only when answered questions already consumed all available questions.
+    if len(s.evaluations) >= len(s.questions):
+        raise HTTPException(status_code=400, detail="No more questions in this session.")
 
     q = s.questions[len(s.evaluations)]
     return QuestionOut(
@@ -131,6 +141,8 @@ async def submit_answer(session_id: str, payload: AnswerIn) -> EvaluationOut:
         q = _find_question(s, payload.question_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Question not found.")
+    if any(ev.question_id == q.question_id for ev in s.evaluations):
+        raise HTTPException(status_code=409, detail="This question was already answered.")
 
     ev = await llm.evaluate_answer(
         resume_text=resume.text,
@@ -172,9 +184,59 @@ async def submit_audio_answer(session_id: str, question_id: str, file: UploadFil
         q = _find_question(s, question_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Question not found.")
+    if any(ev.question_id == q.question_id for ev in s.evaluations):
+        raise HTTPException(status_code=409, detail="This question was already answered.")
 
     audio_bytes = await file.read()
     transcript = await stt.transcribe_bytes(audio_bytes, file.filename or "audio")
+
+    ev = await llm.evaluate_answer(
+        resume_text=resume.text,
+        target_role=s.target_role,
+        question=q.question,
+        answer=transcript,
+    )
+    ae = AnswerEval(
+        question_id=q.question_id,
+        answer=transcript,
+        transcript=transcript,
+        score=ev.score,
+        breakdown=ev.breakdown,
+        strengths=ev.strengths,
+        improvements=ev.improvements,
+        suggested_answer=ev.suggested_answer,
+    )
+    s.evaluations.append(ae)
+
+    bd = ScoreBreakdown(**ev.breakdown)
+    return EvaluationOut(
+        question_id=q.question_id,
+        transcript=transcript,
+        score=ev.score,
+        breakdown=bd,
+        strengths=ev.strengths,
+        improvements=ev.improvements,
+        suggested_answer=ev.suggested_answer,
+    )
+
+
+@app.post("/api/sessions/{session_id}/answer-video", response_model=EvaluationOut)
+async def submit_video_answer(session_id: str, question_id: str, file: UploadFile = File(...)) -> EvaluationOut:
+    """Accept a video recording (webm/mp4) and transcribe the audio track via STT."""
+    if session_id not in store.sessions:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    s = store.get_session(session_id)
+    resume = store.get_resume(s.resume_id)
+    try:
+        q = _find_question(s, question_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Question not found.")
+    if any(ev.question_id == q.question_id for ev in s.evaluations):
+        raise HTTPException(status_code=409, detail="This question was already answered.")
+
+    video_bytes = await file.read()
+    # Reuse STT — OpenAI Whisper accepts webm/mp4 directly
+    transcript = await stt.transcribe_bytes(video_bytes, file.filename or "video.webm")
 
     ev = await llm.evaluate_answer(
         resume_text=resume.text,

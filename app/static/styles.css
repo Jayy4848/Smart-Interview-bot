@@ -261,6 +261,216 @@ code {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.stub-warning {
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: rgba(253, 224, 71, 0.9);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.stub-warning code {
+  background: rgba(255,255,255,0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: rgba(253, 224, 71, 1);
+}
+
+/* ── Answer mode tabs ─────────────────────────────────────────────────────── */
+.answer-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover {
+  background: rgba(124, 92, 255, 0.25);
+  color: white;
+}
+
+.tab-btn.active {
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.9), rgba(124, 92, 255, 0.65));
+  border-color: rgba(124, 92, 255, 0.6);
+  color: white;
+}
+
+.tab-icon {
+  margin-right: 4px;
+}
+
+/* ── Answer panels ────────────────────────────────────────────────────────── */
+.answer-panel {
+  margin-bottom: 4px;
+}
+
+.answer-panel.hidden {
+  display: none;
+}
+
+/* ── Video area ───────────────────────────────────────────────────────────── */
+.video-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0a0e1c;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 12px;
+}
+
+#videoPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1); /* mirror effect */
+}
+
+.video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 14, 28, 0.85);
+  gap: 10px;
+}
+
+.answer-panel.has-live-camera .video-overlay {
+  display: none;
+}
+
+.video-placeholder-icon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.video-placeholder-text {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+}
+
+.recording-indicator {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff4444;
+  letter-spacing: 0.05em;
+}
+
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4444;
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.countdown-overlay.active {
+  display: flex;
+}
+
+.countdown-number {
+  font-size: 96px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 0 40px rgba(124, 92, 255, 0.8);
+  min-width: 160px;
+  text-align: center;
+  animation: pop 0.85s ease-out forwards;
+}
+
+@keyframes pop {
+  0%   { transform: scale(1.6); opacity: 0; }
+  25%  { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Video controls ───────────────────────────────────────────────────────── */
+.video-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.btn-record {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.9), rgba(52, 211, 153, 0.65));
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.btn-stop {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.9), rgba(239, 68, 68, 0.65));
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.btn-submit {
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.9), rgba(124, 92, 255, 0.65));
+}
+
+/* ── Recorded preview ─────────────────────────────────────────────────────── */
+.recorded-preview {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recorded-preview video {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #000;
+}
+
+/* ── Answer mode badge ────────────────────────────────────────────────────── */
+.answer-mode-badge {
+  background: rgba(124, 92, 255, 0.2);
+  border-color: rgba(124, 92, 255, 0.4);
+  color: rgba(200, 180, 255, 0.9);
+}
+
 @media (max-width: 820px) {
   .grid,
   .grid2,
@@ -269,6 +479,10 @@ code {
     grid-template-columns: 1fr;
   }
   .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .video-controls {
     flex-direction: column;
     align-items: stretch;
   }

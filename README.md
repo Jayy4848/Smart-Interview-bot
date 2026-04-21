@@ -1,4 +1,4 @@
-# Smart Interview Bot (MVP)
+# Smart AI Interview Bot (MVP)
 
 An AI-powered interview practice app that:
 

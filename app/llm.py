@@ -78,6 +78,23 @@ def _top_keywords(text: str, k: int = 10) -> list[str]:
     return [w for w, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:k]]
 
 
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z0-9+#.]+", text.lower())
+
+
+def _is_low_effort_answer(answer: str) -> bool:
+    toks = _tokenize(answer)
+    if len(toks) < 6:
+        return True
+    unique = set(toks)
+    if len(unique) < 4:
+        return True
+    greetings = {"hi", "hello", "hey", "thanks", "thank", "yo"}
+    if all(t in greetings for t in unique):
+        return True
+    return False
+
+
 class LLMClient:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -115,6 +132,22 @@ class LLMClient:
         question: str,
         answer: str,
     ) -> Evaluation:
+        if _is_low_effort_answer(answer):
+            return Evaluation(
+                score=4,
+                breakdown={"relevance": 1, "depth": 1, "clarity": 2, "evidence": 0},
+                strengths=[],
+                improvements=[
+                    "Answer is too short to evaluate meaningfully.",
+                    "Address the exact question with context from your real project or resume.",
+                    "Use STAR format (Situation, Task, Action, Result) with concrete technical decisions.",
+                    "Include measurable impact (latency, reliability, revenue, cost, or time saved).",
+                ],
+                suggested_answer=(
+                    "Give a complete 6-10 sentence response with context, your role, technical choices, trade-offs, and measurable impact."
+                ),
+            )
+
         if self.settings.llm_provider == "openai":
             return await self._evaluate_answer_openai(
                 resume_text=resume_text,
@@ -138,17 +171,32 @@ class LLMClient:
         focus_areas: list[str],
         max_questions: int,
     ) -> list[GeneratedQuestion]:
-        kws = _top_keywords(resume_text, k=12)
+        kws = _top_keywords(resume_text, k=18) or ["backend", "api", "database", "testing", "deployment"]
         focus = ", ".join(focus_areas) if focus_areas else "core engineering"
-        base = [
-            GeneratedQuestion(
-                question=f"Walk me through a project on your resume where you used {k}. What was the impact and what trade-offs did you make?",
-                category="resume-deep-dive",
-                difficulty="medium",
-            )
-            for k in kws[: max(3, min(6, len(kws)))]
+        templates = [
+            (
+                "Walk me through a project on your resume where you used {kw}. What was the impact and what trade-offs did you make?",
+                "resume-deep-dive",
+                "medium",
+            ),
+            (
+                "In a {kw}-related task, how did you decide architecture and what constraints drove your choices?",
+                "system-design",
+                "hard" if seniority in {"senior", "staff"} else "medium",
+            ),
+            (
+                "Describe a failure or bug you faced while working with {kw}. How did you diagnose, fix, and prevent it?",
+                "debugging",
+                "medium",
+            ),
+            (
+                "If you had to improve a {kw} component today, what would you optimize first and why?",
+                "optimization",
+                "easy",
+            ),
         ]
-        extras = [
+
+        fixed = [
             GeneratedQuestion(
                 question=f"For a {seniority} {target_role} focused on {focus}, describe how you would design a production-ready feature end-to-end (requirements → rollout).",
                 category="system-design",
@@ -165,9 +213,38 @@ class LLMClient:
                 difficulty="easy",
             ),
         ]
-        qs = base + extras
+
+        qs: list[GeneratedQuestion] = []
+        # Expand question bank until we can satisfy requested count.
+        idx = 0
+        while len(qs) < max_questions:
+            kw = kws[idx % len(kws)]
+            tmpl, category, difficulty = templates[idx % len(templates)]
+            qs.append(
+                GeneratedQuestion(
+                    question=tmpl.format(kw=kw),
+                    category=category,
+                    difficulty=difficulty,
+                )
+            )
+            idx += 1
+
+        qs.extend(fixed)
         random.shuffle(qs)
-        return qs[:max_questions]
+
+        # Deduplicate by normalized text while preserving order.
+        seen: set[str] = set()
+        deduped: list[GeneratedQuestion] = []
+        for q in qs:
+            key = q.question.strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(q)
+            if len(deduped) >= max_questions:
+                break
+
+        return deduped[:max_questions]
 
     def _evaluate_answer_stub(
         self,
@@ -184,31 +261,31 @@ class LLMClient:
         resume_kws = set(_top_keywords(resume_text, k=20))
         overlap = sum(1 for t in _top_keywords(a, k=20) if t in resume_kws)
 
-        relevance = _clamp_int(8 + overlap, 0, 25, 10)
-        depth = _clamp_int(6 + (10 if length > 600 else 3 if length > 250 else 0), 0, 25, 10)
-        clarity = _clamp_int(10 + (6 if has_structure else 0) - (4 if length > 3500 else 0), 0, 25, 12)
-        evidence = _clamp_int(6 + (10 if has_numbers else 0), 0, 25, 10)
+        relevance = _clamp_int(2 + overlap * 2 + (3 if length > 120 else 0), 0, 25, 2)
+        depth = _clamp_int(1 + (6 if length > 600 else 3 if length > 250 else 0), 0, 25, 1)
+        clarity = _clamp_int(2 + (5 if has_structure else 0) - (4 if length > 3500 else 0), 0, 25, 2)
+        evidence = _clamp_int(0 + (12 if has_numbers else 0), 0, 25, 0)
 
         total = relevance + depth + clarity + evidence
         strengths: list[str] = []
         improvements: list[str] = []
 
-        if relevance >= 16:
+        if relevance >= 14:
             strengths.append("Good alignment with your resume and the question.")
         else:
             improvements.append("Tie your answer more explicitly to the question and your resume experience.")
 
-        if evidence >= 16:
+        if evidence >= 12:
             strengths.append("You used concrete evidence/metrics, which increases credibility.")
         else:
             improvements.append("Add measurable outcomes (latency, cost, conversion, incidents, time saved).")
 
-        if clarity >= 16:
+        if clarity >= 12:
             strengths.append("Clear structure and easy to follow.")
         else:
             improvements.append("Use a clearer structure (Situation → Task → Action → Result) and call out trade-offs.")
 
-        if depth >= 16:
+        if depth >= 12:
             strengths.append("Good technical depth and specificity.")
         else:
             improvements.append("Add deeper technical details: constraints, alternatives considered, and why you chose the final approach.")
@@ -297,13 +374,25 @@ Questions must reference resume details when possible and avoid duplicates.
                     difficulty=item.get("difficulty", "medium"),
                 )
             )
-        return out[:max_questions] or self._generate_questions_stub(
-            resume_text=resume_text,
-            target_role=target_role,
-            seniority=seniority,
-            focus_areas=focus_areas,
-            max_questions=max_questions,
-        )
+        if len(out) < max_questions:
+            fallback = self._generate_questions_stub(
+                resume_text=resume_text,
+                target_role=target_role,
+                seniority=seniority,
+                focus_areas=focus_areas,
+                max_questions=max_questions,
+            )
+            used = {x.question.strip().lower() for x in out}
+            for q in fallback:
+                key = q.question.strip().lower()
+                if key in used:
+                    continue
+                out.append(q)
+                used.add(key)
+                if len(out) >= max_questions:
+                    break
+
+        return out[:max_questions]
 
     async def _evaluate_answer_openai(
         self,

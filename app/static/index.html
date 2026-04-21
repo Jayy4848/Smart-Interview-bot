@@ -3,21 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Smart Interview Bot</title>
+    <title>Smart AI Interview Bot</title>
     <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>" />
   </head>
   <body>
     <div class="container">
       <header class="header">
         <div>
-          <h1>Smart Interview Bot</h1>
+          <h1>Smart AI Interview Bot</h1>
           <p class="sub">
-            Upload your resume → get tailored questions → answer by text or voice → receive feedback + scoring.
+            Upload your resume → get tailored questions → answer by video, voice, or text → receive feedback + scoring.
           </p>
         </div>
         <div class="pill" id="modePill">LLM: stub • STT: stub</div>
       </header>
 
+      <!-- Stub mode warning -->
+      <div class="stub-warning" id="stubWarning" hidden>
+        ⚠️ <strong>Stub mode active</strong> — scores are estimated using keyword matching, not AI.
+        Set <code>LLM_PROVIDER=openai</code> and <code>OPENAI_API_KEY</code> in <code>.env</code> for real scoring.
+      </div>
+
+      <!-- Step 1: Upload resume -->
       <section class="card">
         <h2>1) Upload resume</h2>
         <div class="row">
@@ -27,6 +35,7 @@
         <div class="hint" id="resumeStatus">No resume uploaded yet.</div>
       </section>
 
+      <!-- Step 2: Session config -->
       <section class="card">
         <h2>2) Start session</h2>
         <div class="grid">
@@ -59,42 +68,98 @@
         </div>
       </section>
 
+      <!-- Step 3: Interview -->
       <section class="card">
         <h2>3) Interview</h2>
+
+        <!-- Question display -->
         <div class="questionBox">
           <div class="meta">
             <span class="tag" id="qCategory">—</span>
             <span class="tag" id="qDifficulty">—</span>
             <span class="tag" id="qIndex">Q —</span>
+            <span class="tag answer-mode-badge" id="answerModeBadge" hidden></span>
           </div>
           <div class="question" id="questionText">Start a session to get your first question.</div>
         </div>
 
-        <div class="grid2">
-          <div>
-            <label>
-              Text answer
-              <textarea id="answerText" rows="6" placeholder="Type your answer here..."></textarea>
-            </label>
-            <div class="row">
-              <button id="submitTextBtn" disabled>Submit text</button>
-              <button id="nextBtn" disabled>Next question</button>
+        <!-- Answer mode tabs -->
+        <div class="answer-tabs" id="answerTabs">
+          <button class="tab-btn active" id="tabVideo" data-tab="video">
+            <span class="tab-icon">🎥</span> Video answer
+          </button>
+          <button class="tab-btn" id="tabText" data-tab="text">
+            <span class="tab-icon">⌨️</span> Text answer
+          </button>
+          <button class="tab-btn" id="tabAudio" data-tab="audio">
+            <span class="tab-icon">🎙️</span> Audio upload
+          </button>
+        </div>
+
+        <!-- VIDEO PANEL -->
+        <div class="answer-panel" id="panelVideo">
+          <div class="video-area">
+            <video id="videoPreview" autoplay muted playsinline></video>
+            <div class="video-overlay" id="videoOverlay">
+              <div class="video-placeholder-icon">🎥</div>
+              <div class="video-placeholder-text">Camera preview will appear here</div>
+            </div>
+            <div class="recording-indicator" id="recordingIndicator" hidden>
+              <span class="rec-dot"></span> REC
+            </div>
+            <div class="countdown-overlay" id="countdownOverlay">
+              <div class="countdown-number" id="countdownNumber"></div>
             </div>
           </div>
-          <div>
-            <label>
-              Voice answer (upload audio)
-              <input id="audioFile" type="file" accept=".wav,.mp3,.m4a,.webm" />
-            </label>
-            <div class="row">
-              <button id="submitAudioBtn" disabled>Submit audio</button>
-            </div>
-            <div class="hint">Tip: enable OpenAI STT in <code>.env</code> to get real transcription.</div>
+          <div class="video-controls">
+            <button id="startVideoBtn" class="btn-record" disabled>
+              <span>▶</span> Start recording
+            </button>
+            <button id="stopVideoBtn" class="btn-stop" disabled hidden>
+              <span>⏹</span> Stop recording
+            </button>
+            <button id="submitVideoBtn" class="btn-submit" disabled>
+              Submit video answer
+            </button>
+            <div class="hint" id="videoHint">Start a session to enable video recording.</div>
           </div>
+          <div class="recorded-preview" id="recordedPreview" hidden>
+            <video id="recordedVideo" controls></video>
+            <button class="secondary" id="retakeBtn">↩ Retake</button>
+          </div>
+        </div>
+
+        <!-- TEXT PANEL -->
+        <div class="answer-panel hidden" id="panelText">
+          <label>
+            Your answer
+            <textarea id="answerText" rows="7" placeholder="Type your answer here..."></textarea>
+          </label>
+          <div class="row">
+            <button id="submitTextBtn" disabled>Submit text</button>
+          </div>
+        </div>
+
+        <!-- AUDIO PANEL -->
+        <div class="answer-panel hidden" id="panelAudio">
+          <label>
+            Upload audio file
+            <input id="audioFile" type="file" accept=".wav,.mp3,.m4a,.webm,.ogg" />
+          </label>
+          <div class="row">
+            <button id="submitAudioBtn" disabled>Submit audio</button>
+          </div>
+          <div class="hint">Tip: enable OpenAI STT in <code>.env</code> to get real transcription.</div>
+        </div>
+
+        <!-- Next question button (outside panels) -->
+        <div class="row" style="margin-top:12px">
+          <button id="nextBtn" disabled>Next question →</button>
         </div>
 
         <div class="divider"></div>
 
+        <!-- Scores -->
         <div class="scoreRow">
           <div class="scoreCard">
             <div class="scoreLabel">Latest score</div>
@@ -108,6 +173,7 @@
           </div>
         </div>
 
+        <!-- Feedback -->
         <div class="feedback">
           <div>
             <h3>Strengths</h3>
@@ -119,6 +185,7 @@
           </div>
         </div>
 
+        <!-- Transcript -->
         <div class="transcriptBox" id="transcriptBox" hidden>
           <h3>Transcript</h3>
           <pre id="transcript"></pre>
@@ -129,4 +196,3 @@
     <script src="/static/app.js"></script>
   </body>
 </html>
-
